@@ -13,11 +13,11 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Local MongoDB Connection URL
-const MONGO_URI = 'mongodb://localhost:27017/vaagai_tuition';
+// 🎯 DYNAMIC MONGO_URI (Render Environment Variable & Fallback to Local)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/vaagai_tuition';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('🎯 MongoDB Connected Successfully to LOCALHOST for WFH System!'))
+  .then(() => console.log('🎯 MongoDB Connected Successfully!'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
 // Razorpay Instance
@@ -227,10 +227,10 @@ app.delete('/api/admin/delete-pdf/:id', verifyAdminOrWorker, async (req, res) =>
   }
 });
 
-// 🌟 Fetch ALL PDFs (Pending & Approved) for Admin Management
+// Fetch ALL PDFs (Pending & Approved) for Admin Management
 app.get('/api/admin/all-pdfs', verifyAdminOrWorker, async (req, res) => {
   try {
-    const pdfs = await PaidPdf.find({}).sort({ id: -1 }); // { status: 'Approved' } தூக்கப்பட்டு அனைத்து PDF-களும் காட்டப்படும்
+    const pdfs = await PaidPdf.find({}).sort({ id: -1 });
     res.json({ success: true, pdfs });
   } catch (err) {
     res.status(500).json({ success: false, message: "Error fetching PDFs!" });
@@ -427,7 +427,7 @@ app.post('/api/paid-pdfs/worker-upload', async (req, res) => {
       answerPdfLink, 
       isFree: isFree || false,
       price: isFree ? 0 : (price || 0),
-      status: 'Approved', // 🌟 அட்மினிலிருந்து அப்லோடு செய்யப்படும் PDF-கள் நேரடியாக லைவ் ஆகும்
+      status: 'Approved',
       rejectReason: ''
     });
     await newPdf.save();
@@ -477,7 +477,7 @@ app.post('/api/auth/signin', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('🚀 Vaagai Tuition Backend Server + Local MongoDB + Razorpay Ready!');
+  res.send('🚀 Vaagai Tuition Backend Server + Cloud MongoDB + Razorpay Ready!');
 });
 
 app.listen(PORT, () => console.log(`✅ Server running successfully on port ${PORT}...`));
