@@ -11,6 +11,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// 🚀 Render Reverse Proxy Fix (Fixes ValidationError: 'X-Forwarded-For')
+app.set('trust proxy', 1);
+
 // 🔒 Security & CORS Middleware (Fixed for Preflight & Custom Headers)
 app.use(helmet());
 app.use(cors({
@@ -22,7 +25,9 @@ app.use(cors({
 // Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false
 });
 app.use('/api/', limiter);
 
@@ -37,7 +42,7 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('🎯 MongoDB Connected Successfully!'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-// 💳 Razorpay Setup
+// 💳 Razorpay Setup (Render Environment Variables-ல் Live Keys கொடுத்தால் அதை எடுத்துக்கொள்ளும்)
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_TXSfHBesNhHuXM',
   key_secret: process.env.RAZORPAY_KEY_SECRET || 'MohPsvfXDzD6YncfhPvufjkM'
@@ -263,7 +268,7 @@ app.delete('/api/admin/delete-user', verifyAdminOrWorker, async (req, res) => {
   }
 });
 
-// 📝 Quiz Management (Robust Question Adding & Editing)
+// 📝 Quiz Management
 app.get('/api/quiz/questions', async (req, res) => {
   try {
     const questions = await Quiz.find({ status: { $regex: /^active$/i } }).sort({ _id: -1 });
@@ -501,7 +506,7 @@ app.post('/api/admin/update-slides', verifyAdminOrWorker, async (req, res) => {
   }
 });
 
-// 📄 PDFs (Admin & Client Endpoints)
+// 📄 PDFs
 app.get('/api/admin/all-pdfs', verifyAdminOrWorker, async (req, res) => {
   try {
     const pdfs = await PaidPdf.find({}).sort({ _id: -1 });
@@ -732,6 +737,7 @@ app.post('/api/payment/create-order', async (req, res) => {
     const order = await razorpay.orders.create(options);
     res.json({ success: true, orderId: order.id, amount: order.amount });
   } catch (err) {
+    console.error("Razorpay Order Creation Error:", err);
     res.status(500).json({ success: false, message: "Could not create Razorpay order!" });
   }
 });
@@ -751,8 +757,9 @@ app.post('/api/payment/success', async (req, res) => {
 
   try {
     if (razorpay_order_id && razorpay_payment_id && razorpay_signature) {
+      const secret = process.env.RAZORPAY_KEY_SECRET || 'WYEppsdiln4ZRRypVdqzWCCw';
       const sign = crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'WYEppsdiln4ZRRypVdqzWCCw')
+        .createHmac('sha256', secret)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest('hex');
 
