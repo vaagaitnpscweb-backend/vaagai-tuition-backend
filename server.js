@@ -39,8 +39,8 @@ mongoose.connect(MONGO_URI)
 
 // 💳 Razorpay Setup
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_TCtg24wJm0gqRH',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'WYEppsdiln4ZRRypVdqzWCCw'
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_TXSfHBesNhHuXM',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'MohPsvfXDzD6YncfhPvufjkM'
 });
 
 // 📊 Schemas
