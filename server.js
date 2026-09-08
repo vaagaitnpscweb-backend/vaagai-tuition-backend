@@ -44,8 +44,8 @@ mongoose.connect(MONGO_URI)
 
 // 💳 Razorpay Setup (Render Environment Variables-ல் Live Keys கொடுத்தால் அதை எடுத்துக்கொள்ளும்)
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_TXSfHBesNhHuXM',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'MohPsvfXDzD6YncfhPvufjkM'
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_TCtg24wJm0gqRH',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'WYEppsdiln4ZRRypVdqzWCCw'
 });
 
 // 📊 Schemas
@@ -361,13 +361,23 @@ app.put('/api/admin/reject-item', verifyAdminOrWorker, async (req, res) => {
   }
 });
 
-// 📋 Online Tests
+// 📋 Online Tests (Admin Management)
 app.get('/api/admin/all-tests', verifyAdminOrWorker, async (req, res) => {
   try {
     const tests = await OnlineTest.find({}).sort({ _id: -1 });
     res.json({ success: true, tests });
   } catch (err) {
     res.status(500).json({ success: false, message: "Error fetching online tests!" });
+  }
+});
+
+// 🟢 Free Test & Client Tests (Public API - No 401 Error)
+app.get('/api/tests/public', async (req, res) => {
+  try {
+    const tests = await OnlineTest.find({ status: { $regex: /^active$/i } }).sort({ _id: -1 });
+    res.json({ success: true, tests });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Error fetching available tests!" });
   }
 });
 
@@ -391,8 +401,8 @@ app.post('/api/admin/add-test', verifyAdminOrWorker, async (req, res) => {
     const last = await OnlineTest.findOne().sort({ _id: -1 });
     const nextId = (last && Number(last.id)) ? Number(last.id) + 1 : Date.now();
 
-    const validStartTime = startTime && startTime.trim() !== '' ? new Date(startTime) : null;
-    const validEndTime = endTime && endTime.trim() !== '' ? new Date(endTime) : null;
+    const validStartTime = startTime && String(startTime).trim() !== '' ? new Date(startTime) : null;
+    const validEndTime = endTime && String(endTime).trim() !== '' ? new Date(endTime) : null;
 
     const newTest = new OnlineTest({
       id: nextId,
@@ -435,8 +445,8 @@ app.put('/api/admin/edit-test', verifyAdminOrWorker, async (req, res) => {
     if (isFree !== undefined) updatePayload.isFree = Boolean(isFree);
     if (price !== undefined) updatePayload.price = isFree ? 0 : Number(price);
 
-    updatePayload.startTime = startTime && startTime.trim() !== '' ? new Date(startTime) : null;
-    updatePayload.endTime = endTime && endTime.trim() !== '' ? new Date(endTime) : null;
+    updatePayload.startTime = startTime && String(startTime).trim() !== '' ? new Date(startTime) : null;
+    updatePayload.endTime = endTime && String(endTime).trim() !== '' ? new Date(endTime) : null;
     if (status) updatePayload.status = status;
 
     const query = mongoose.isValidObjectId(id) 
