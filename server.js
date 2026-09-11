@@ -11,10 +11,10 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 🚀 Render Reverse Proxy Fix
+// 🚀 Render Reverse Proxy Fix (Fixes ValidationError: 'X-Forwarded-For')
 app.set('trust proxy', 1);
 
-// 🔒 Security & CORS Middleware
+// 🔒 Security & CORS Middleware (Fixed for Preflight & Custom Headers)
 app.use(helmet());
 app.use(cors({
   origin: '*',
@@ -42,10 +42,10 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('🎯 MongoDB Connected Successfully!'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-// 💳 Razorpay Setup
+// 💳 Razorpay Setup (Render Environment Variables-ல் Live Keys கொடுத்தால் அதை எடுத்துக்கொள்ளும்)
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_TCtg24wJm0gqRH',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'WYEppsdiln4ZRRypVdqzWCCw'
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_TXSfHBesNhHuXM',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'MohPsvfXDzD6YncfhPvufjkM'
 });
 
 // 📊 Schemas
@@ -55,8 +55,6 @@ const User = mongoose.model('User', new mongoose.Schema({
   password: { type: String, required: true },
   contact: { type: String, default: 'N/A' },
   role: { type: String, enum: ['student', 'user', 'worker', 'admin'], default: 'student' },
-  points: { type: Number, default: 0 },
-  attendedTests: [{ type: String }],
   createdAt: { type: Date, default: Date.now }
 }));
 
@@ -77,8 +75,8 @@ const Order = mongoose.model('Order', new mongoose.Schema({
 const Quiz = mongoose.model('Quiz', new mongoose.Schema({
   id: mongoose.Schema.Types.Mixed,
   subject: { type: String, default: 'TNPSC' },
-  category: { type: String, default: 'Tamil' },
-  topic: { type: String, default: 'Tamil' },
+  category: { type: String, default: 'தமிழ்' },
+  topic: { type: String, default: 'தமிழ்' },
   questionSet: { type: String, default: 'Model Test 1' },
   question: { type: String, required: true },
   options: { type: [String], default: [] },
@@ -92,15 +90,15 @@ const OnlineTest = mongoose.model('OnlineTest', new mongoose.Schema({
   examType: { type: String, default: 'TNPSC' },
   title: { type: String, required: true },
   selectedTopics: [String],
-  topic: { type: String, default: 'Tamil' },
+  topic: { type: String, default: 'தமிழ்' },
   selectionType: { type: String, enum: ['random', 'selective'], default: 'random' },
   selectedQuestionIds: [mongoose.Schema.Types.Mixed],
   totalQuestions: { type: Number, default: 20 },
   durationMinutes: { type: Number, default: 15 },
   isFree: { type: Boolean, default: true },
   price: { type: Number, default: 0 },
-  startTime: { type: String, default: null },
-  endTime: { type: String, default: null },
+  startTime: { type: Date, default: null },
+  endTime: { type: Date, default: null },
   status: { type: String, default: 'active' },
   createdAt: { type: Date, default: Date.now }
 }));
@@ -192,10 +190,10 @@ app.post('/api/admin/login', (req, res) => {
   });
 });
 
-// 👥 Users Management (Points உட்பட விவரங்கள் அனுப்பப்படும்)
+// 👥 Users Management
 app.get('/api/admin/users', verifyAdminOrWorker, async (req, res) => {
   try {
-    const users = await User.find({}, 'name email contact role points attendedTests createdAt').sort({ createdAt: -1 });
+    const users = await User.find({}, 'name email contact role createdAt').sort({ createdAt: -1 });
     res.json({ success: true, users });
   } catch (err) {
     res.status(500).json({ success: false, message: "Error fetching user details!" });
@@ -270,7 +268,7 @@ app.delete('/api/admin/delete-user', verifyAdminOrWorker, async (req, res) => {
   }
 });
 
-// 📝 Quiz Questions Management
+// 📝 Quiz Management
 app.get('/api/quiz/questions', async (req, res) => {
   try {
     const questions = await Quiz.find({ status: { $regex: /^active$/i } }).sort({ _id: -1 });
@@ -285,11 +283,12 @@ app.post('/api/quiz/add', verifyAdminOrWorker, async (req, res) => {
   try {
     const last = await Quiz.findOne().sort({ _id: -1 });
     const nextId = (last && Number(last.id)) ? Number(last.id) + 1 : Date.now();
-    const resolvedTopic = topic || category || 'Tamil';
+
+    const resolvedTopic = topic || category || 'தமிழ்';
 
     const newQuiz = new Quiz({
       id: nextId,
-      subject: subject || 'General',
+      subject: subject || 'TNPSC',
       category: resolvedTopic,
       topic: resolvedTopic,
       questionSet: questionSet || 'Topic Test',
@@ -302,6 +301,7 @@ app.post('/api/quiz/add', verifyAdminOrWorker, async (req, res) => {
     await newQuiz.save();
     return res.json({ success: true, message: "Question added successfully!", quiz: newQuiz });
   } catch (err) {
+    console.error("Quiz Add Error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -333,6 +333,7 @@ app.put('/api/admin/edit-item', verifyAdminOrWorker, async (req, res) => {
     }
     return res.json({ success: true, message: "Item updated successfully!" });
   } catch (err) {
+    console.error("Quiz Edit Error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -360,7 +361,7 @@ app.put('/api/admin/reject-item', verifyAdminOrWorker, async (req, res) => {
   }
 });
 
-// 📋 Online Tests - Admin Management
+// 📋 Online Tests
 app.get('/api/admin/all-tests', verifyAdminOrWorker, async (req, res) => {
   try {
     const tests = await OnlineTest.find({}).sort({ _id: -1 });
@@ -370,40 +371,43 @@ app.get('/api/admin/all-tests', verifyAdminOrWorker, async (req, res) => {
   }
 });
 
-// 🟢 Public Tests API (மாணவர்களுக்கு 401 எரர் வராது)
-app.get('/api/tests/public', async (req, res) => {
-  try {
-    const tests = await OnlineTest.find({ status: { $regex: /^active$/i } }).sort({ _id: -1 });
-    res.json({ success: true, tests });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Error fetching available tests!" });
-  }
-});
-
 app.post('/api/admin/add-test', verifyAdminOrWorker, async (req, res) => {
   const { examType, title, selectedTopics, selectionType, selectedQuestionIds, totalQuestions, durationMinutes, isFree, price, startTime, endTime } = req.body;
   try {
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: "Test title is required!" });
     }
+    if (Number(totalQuestions) < 1) {
+      return res.status(400).json({ success: false, message: "Total questions must be at least 1!" });
+    }
+    if (Number(durationMinutes) < 1) {
+      return res.status(400).json({ success: false, message: "Duration must be at least 1 minute!" });
+    }
+    const testPrice = Number(price);
+    if (!isFree && (!Number.isFinite(testPrice) || testPrice < 0)) {
+      return res.status(400).json({ success: false, message: "Invalid test price!" });
+    }
 
     const last = await OnlineTest.findOne().sort({ _id: -1 });
     const nextId = (last && Number(last.id)) ? Number(last.id) + 1 : Date.now();
+
+    const validStartTime = startTime && startTime.trim() !== '' ? new Date(startTime) : null;
+    const validEndTime = endTime && endTime.trim() !== '' ? new Date(endTime) : null;
 
     const newTest = new OnlineTest({
       id: nextId,
       examType: examType || 'TNPSC',
       title: title.trim(),
-      selectedTopics: selectedTopics && selectedTopics.length > 0 ? selectedTopics : ['Tamil'],
-      topic: selectedTopics?.[0] || 'Tamil',
+      selectedTopics: selectedTopics && selectedTopics.length > 0 ? selectedTopics : ['தமிழ்'],
+      topic: selectedTopics?.[0] || 'தமிழ்',
       selectionType: selectionType || 'random',
       selectedQuestionIds: selectedQuestionIds || [],
       totalQuestions: Number(totalQuestions) || 20,
       durationMinutes: Number(durationMinutes) || 15,
       isFree: Boolean(isFree),
-      price: isFree ? 0 : Number(price || 0),
-      startTime: startTime && String(startTime).trim() !== '' ? String(startTime) : null,
-      endTime: endTime && String(endTime).trim() !== '' ? String(endTime) : null,
+      price: isFree ? 0 : testPrice,
+      startTime: validStartTime,
+      endTime: validEndTime,
       status: 'active'
     });
 
@@ -431,8 +435,8 @@ app.put('/api/admin/edit-test', verifyAdminOrWorker, async (req, res) => {
     if (isFree !== undefined) updatePayload.isFree = Boolean(isFree);
     if (price !== undefined) updatePayload.price = isFree ? 0 : Number(price);
 
-    updatePayload.startTime = startTime && String(startTime).trim() !== '' ? String(startTime) : null;
-    updatePayload.endTime = endTime && String(endTime).trim() !== '' ? String(endTime) : null;
+    updatePayload.startTime = startTime && startTime.trim() !== '' ? new Date(startTime) : null;
+    updatePayload.endTime = endTime && endTime.trim() !== '' ? new Date(endTime) : null;
     if (status) updatePayload.status = status;
 
     const query = mongoose.isValidObjectId(id) 
@@ -464,42 +468,6 @@ app.delete('/api/admin/delete-test/:id', verifyAdminOrWorker, async (req, res) =
     return res.json({ success: true, message: "Online Test deleted successfully!" });
   } catch (err) {
     return res.status(500).json({ success: false, message: "Error deleting online test!" });
-  }
-});
-
-// 🎯 தேர்வு முடிவுகள் & புள்ளிகள் சேமிப்பு (One-Time Attempt & Points Accumulator)
-app.post('/api/tests/submit-result', async (req, res) => {
-  const { email, testId, score } = req.body;
-  const cleanEmail = (email || '').trim().toLowerCase();
-
-  if (!cleanEmail || !testId) {
-    return res.status(400).json({ success: false, message: "Email and testId required!" });
-  }
-
-  try {
-    const user = await User.findOne({ email: cleanEmail });
-    if (!user) return res.status(404).json({ success: false, message: "User not found!" });
-
-    const strTestId = String(testId);
-    if (!user.attendedTests) user.attendedTests = [];
-
-    // ஒரு முறை மட்டுமே தேர்வு எழுத அனுமதித்தல்
-    if (user.attendedTests.includes(strTestId)) {
-      return res.status(400).json({ success: false, message: "You have already attended this test!" });
-    }
-
-    user.points = (user.points || 0) + Number(score || 0);
-    user.attendedTests.push(strTestId);
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "Score submitted and points recorded!",
-      totalPoints: user.points,
-      attendedTests: user.attendedTests
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -890,22 +858,10 @@ app.post('/api/auth/signup', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    user = new User({ 
-      name: name.trim(), 
-      email: cleanEmail, 
-      contact: contact ? contact.trim() : 'N/A', 
-      password: hashedPassword 
-    });
+    user = new User({ name: name.trim(), email: cleanEmail, contact: contact ? contact.trim() : 'N/A', password: hashedPassword });
     await user.save();
 
-    const userResponse = { 
-      name: user.name, 
-      email: user.email, 
-      contact: user.contact, 
-      role: user.role,
-      points: user.points,
-      attendedTests: user.attendedTests
-    };
+    const userResponse = { name: user.name, email: user.email, contact: user.contact, role: user.role };
     res.json({ success: true, message: "Account created successfully!", user: userResponse });
   } catch (err) {
     res.status(500).json({ success: false, message: "Error signing up!" });
@@ -931,14 +887,7 @@ app.post('/api/auth/signin', async (req, res) => {
       return res.status(401).json({ success: false, message: "Incorrect password!" });
     }
 
-    const userResponse = { 
-      name: user.name, 
-      email: user.email, 
-      contact: user.contact, 
-      role: user.role,
-      points: user.points || 0,
-      attendedTests: user.attendedTests || []
-    };
+    const userResponse = { name: user.name, email: user.email, contact: user.contact, role: user.role };
     res.json({ success: true, message: "Logged in successfully!", user: userResponse });
   } catch (err) {
     res.status(500).json({ success: false, message: "Error logging in!" });
